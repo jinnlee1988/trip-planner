@@ -158,18 +158,19 @@ var CATS=[['food','🍜','Food'],['transport','🚆','Transport'],['hotel','🏨
 function fm(n){return Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
 function cat(k){return CATS.find(function(c){return c[0]===k})||CATS[5]}
 function budget(t){
- var hc=t.cur||'SGD',es=S.expenses.filter(function(e){return e.trip===t.id}).sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0}),tot=0,bc={},bd=+t.budget||0,h='';
- es.forEach(function(e){tot+=+e.home||0;bc[e.cat]=(bc[e.cat]||0)+(+e.home||0)});
- var pct=bd?tot/bd*100:0,col=pct>100?'var(--dg)':pct>=80?'#d97706':'var(--ac)';
- h+='<div class="card"><div class="row"><div class="sp"><div class="mu">Budget</div><b>'+(bd?hc+' '+fm(bd):'Not set')+'</b></div><div class="sp"><div class="mu">Spent</div><b>'+hc+' '+fm(tot)+'</b></div><div class="sp"><div class="mu">'+(bd&&tot>bd?'Over by':'Remaining')+'</div><b style="color:'+(bd&&tot>bd?'var(--dg)':'inherit')+'">'+(bd?hc+' '+fm(Math.abs(bd-tot)):'—')+'</b></div></div>';
- if(bd)h+='<div class="bar" style="margin-top:10px"><i style="width:'+Math.min(100,pct)+'%;background:'+col+'"></i></div><div class="mu" style="margin-top:4px;'+(pct>=80?'color:'+col+';font-weight:600':'')+'">'+Math.round(pct)+'% used'+(pct>100?' — over budget':pct>=80?' — nearing your budget':'')+'</div>';
+ var hc=t.cur||'SGD',es=S.expenses.filter(function(e){return e.trip===t.id}),paid=0,plan=0,bc={},bd=+t.budget||0,h='';
+ es.forEach(function(e){var v=+e.home||0;if(e.st==='planned')plan+=v;else paid+=v;bc[e.cat]=(bc[e.cat]||0)+v});
+ var tot=paid+plan,pct=bd?tot/bd*100:0,pp=bd?Math.min(100,paid/bd*100):0,pl=bd?Math.max(0,Math.min(100-pp,plan/bd*100)):0,col=pct>100?'var(--dg)':pct>=80?'#d97706':'var(--ac)';
+ var cell=function(l,v,c){return '<div><div class="mu">'+l+'</div><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b></div>'};
+ h+='<div class="card"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+cell('Budget',bd?hc+' '+fm(bd):'Not set')+cell(bd&&tot>bd?'Over by':'Remaining',bd?hc+' '+fm(Math.abs(bd-tot)):'—',bd&&tot>bd?'var(--dg)':'')+cell('Paid',hc+' '+fm(paid))+cell('Planned',hc+' '+fm(plan))+'</div>';
+ if(bd)h+='<div class="bar" style="display:flex;margin-top:12px"><i style="width:'+pp+'%;background:'+col+'"></i><i style="width:'+pl+'%;background:'+col+';opacity:.4"></i></div><div class="mu" style="margin-top:4px;'+(pct>=80?'color:'+col+';font-weight:600':'')+'">'+Math.round(pct)+'% used'+(plan>0?' (paid + planned)':'')+(pct>100?' — over budget':pct>=80?' — nearing your budget':'')+'</div>';
  else h+='<div class="mu" style="margin-top:8px">Tap <b>Edit</b> at the top to set a trip budget.</div>';
  h+='</div>';
- var ks=Object.keys(bc).sort(function(a,b){return bc[b]-bc[a]});
- if(!es.length)h+='<div class="card mu">No expenses yet. Add each one in the currency you paid.</div>';
- else h+='<div class="card" style="padding:4px 14px">'+ks.map(function(k){var c=cat(k),p=tot?bc[k]/tot*100:0,op=view.cat===k;
+ var ks=Object.keys(bc).sort(function(a,b){return bc[b]-bc[a]}),all=paid+plan;
+ if(!es.length)h+='<div class="card mu">No expenses yet. Add each one in the currency you paid, or as Planned if it is not paid yet.</div>';
+ else h+='<div class="card" style="padding:4px 14px">'+ks.map(function(k){var c=cat(k),p=all?bc[k]/all*100:0,op=view.cat===k;
   var r='<div data-cat="'+k+'" style="padding:10px 0;cursor:pointer"><div class="row"><span>'+c[1]+' '+c[2]+'</span><span class="sp"></span><b>'+hc+' '+fm(bc[k])+'</b><span class="mu" style="min-width:38px;text-align:right">'+Math.round(p)+'%</span><span class="mu">'+(op?'⌄':'›')+'</span></div><div class="bar" style="height:5px;margin-top:6px"><i style="width:'+p+'%;background:var(--ac)"></i></div></div>';
-  if(op)r+=es.filter(function(e){return e.cat===k}).sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:(b._u||0)-(a._u||0)}).map(function(e){return '<div class="row" data-ex="'+e.id+'" style="padding:8px 0 8px 12px;border-top:1px dashed var(--bd);cursor:pointer"><div class="sp"><div>'+esc(e.desc||c[2])+'</div><div class="mu" style="font-size:13px">'+fmt(e.date,{day:'numeric',month:'short'})+(e.ccy!==hc?' · '+esc(e.ccy)+' '+fm(e.amt)+' @ '+(+e.rate).toPrecision(5)+(e.src==='manual'?' (manual)':''):'')+'</div></div><span>'+hc+' '+fm(e.home)+'</span></div>'}).join('');
+  if(op)r+=es.filter(function(e){return e.cat===k}).sort(function(a,b){var x=a.st==='planned',y=b.st==='planned';return x!==y?(x?-1:1):a.date<b.date?1:a.date>b.date?-1:(b._u||0)-(a._u||0)}).map(function(e){var isP=e.st==='planned';return '<div class="row" data-ex="'+e.id+'" style="padding:8px 0 8px 12px;border-top:1px dashed var(--bd);cursor:pointer"><div class="sp"><div>'+esc(e.desc||c[2])+'</div><div class="mu" style="font-size:13px">'+(isP?'<b style="color:#d97706;font-weight:600">Planned</b> · ':'')+fmt(e.date,{day:'numeric',month:'short'})+(e.ccy!==hc?' · '+esc(e.ccy)+' '+fm(e.amt)+' @ '+(+e.rate).toPrecision(5)+(e.src==='manual'?' (manual)':''):'')+'</div></div><span>'+(isP&&e.ccy!==hc?'~':'')+hc+' '+fm(e.home)+'</span></div>'}).join('');
   return '<div class="cg">'+r+'</div>'}).join('')+'</div>';
  return h+'<button class="p fab t" id="addEx">+ Expense</button>'}
 function packing(t){
@@ -184,7 +185,7 @@ view.hints=hintsFor(t);
  return h}
 function expForm(t,x){
  var isNew=!x;x=x||{};var hc=t.cur||'SGD',src=x.src||'auto',seq=0,td=iso(new Date()),last='';try{last=localStorage.getItem('tp_ccy')||''}catch(e){}
- modal('<h2>'+(x.id?'Edit expense':'New expense')+'</h2>'+f('desc','Description',x.desc,'text','placeholder="e.g. Ramen dinner"')+'<div class="g2"><div>'+f('date','Date',x.date||(td>=t.start&&td<=t.end?td:t.start),'date')+'</div><div><label>Category</label><select name="cat">'+CATS.map(function(c){return '<option value="'+c[0]+'"'+(c[0]===(x.cat||'food')?' selected':'')+'>'+c[1]+' '+c[2]+'</option>'}).join('')+'</select></div></div>'+
+ modal('<h2>'+(x.id?'Edit expense':'New expense')+'</h2>'+f('desc','Description',x.desc,'text','placeholder="e.g. Ramen dinner"')+'<label>Status</label><select name="st"><option value="paid"'+(x.st==='planned'?'':' selected')+'>Paid</option><option value="planned"'+(x.st==='planned'?' selected':'')+'>Planned (not paid yet)</option></select>'+(x.st==='planned'?'<button type="button" id="mp" style="margin-top:8px">✓ Mark as paid</button>':'')+'<div class="g2"><div>'+f('date','Date',x.date||(td>=t.start&&td<=t.end?td:t.start),'date')+'</div><div><label>Category</label><select name="cat">'+CATS.map(function(c){return '<option value="'+c[0]+'"'+(c[0]===(x.cat||'food')?' selected':'')+'>'+c[1]+' '+c[2]+'</option>'}).join('')+'</select></div></div>'+
  '<div class="g2"><div>'+f('amt','Amount paid',x.amt,'number','step="any" inputmode="decimal"')+'</div><div>'+f('ccy','Currency (3 letters)',x.ccy||last||hc,'text','maxlength="3" list="ccys" autocapitalize="characters"')+'</div></div><datalist id="ccys">'+['SGD','JPY','CNY','USD','EUR','THB','MYR','KRW','IDR','AUD','GBP','HKD','TWD','VND'].map(function(c){return '<option>'+c+'</option>'}).join('')+'</datalist>'+
  '<div class="g2"><div>'+f('rate','Rate (1 unit = '+hc+')',x.rate,'number','step="any" inputmode="decimal"')+'</div><div>'+f('home','Amount in '+hc,x.home,'number','step="any" inputmode="decimal"')+'</div></div><div class="mu" id="rinfo" style="margin-top:6px"></div><button type="button" id="rfetch" style="margin-top:8px">↻ Get automatic rate</button><div class="mu" style="margin-top:8px">Tip: if your card statement shows the exact '+hc+' amount, type it in the last box. The rate is saved with the expense and never changes later.</div>',
  function(v){var a=+v.amt,c=(v.ccy||'').toUpperCase(),r=+v.rate,hm=+v.home;
@@ -192,7 +193,7 @@ function expForm(t,x){
   if(c.length!==3){msg('Please enter a 3-letter currency, e.g. JPY.');return false}
   if(c===hc){r=1;hm=a}else{if(!(hm>0)&&r>0)hm=a*r;if(!(r>0)&&hm>0)r=hm/a;if(!(r>0)||!(hm>0)){msg('Please get the automatic rate, or type a rate or the amount in '+hc+'.');return false}}
   try{localStorage.setItem('tp_ccy',c)}catch(e){}
-  save('expenses',x.id||uid(),{trip:t.id,desc:v.desc,date:v.date,cat:v.cat,amt:a,ccy:c,rate:r,home:Math.round(hm*100)/100,src:src})},
+  save('expenses',x.id||uid(),{trip:t.id,desc:v.desc,date:v.date,cat:v.cat,amt:a,ccy:c,rate:r,home:Math.round(hm*100)/100,src:src,st:v.st==='planned'?'planned':'paid'})},
  x.id&&function(){del('expenses',x.id)});
  var m=$('.modal'),g=function(n){return m.querySelector('[name='+n+']')},info=function(q){m.querySelector('#rinfo').textContent=q};
  function calc(){var a=+g('amt').value,r=+g('rate').value;if(a>0&&r>0)g('home').value=(a*r).toFixed(2)}
@@ -202,6 +203,9 @@ function expForm(t,x){
   fetch('https://api.frankfurter.dev/v1/'+(d&&d<=td?d:'latest')+'?base='+c+'&symbols='+hc).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(tk!==seq)return;var v=j.rates&&j.rates[hc];if(!v)throw 0;g('rate').value=v;src='auto';calc();info('Automatic rate '+v+' (market rate for '+j.date+'). Your card may differ slightly.')}).catch(function(){if(tk!==seq)return;info('Could not get an automatic rate (offline, or currency not supported). Type the rate or your card amount instead.')})}
  g('amt').oninput=calc;g('rate').oninput=function(){src='manual';calc()};
  g('home').oninput=function(){src='manual';var a=+g('amt').value,h=+g('home').value;if(a>0&&h>0)g('rate').value=(h/a).toFixed(6)};
+ function dl(){var q=g('date').previousElementSibling;if(q)q.textContent=g('st').value==='planned'?'Expected date':'Date'}
+ g('st').onchange=dl;dl();
+ var mp=m.querySelector('#mp');if(mp)mp.onclick=function(){g('st').value='paid';g('date').value=td;dl();mp.style.display='none';if(g('ccy').value.trim().toUpperCase()!==hc)getRate();else info('Marked as paid. Check the amount, then Save.')};
  g('ccy').onchange=getRate;m.querySelector('#rfetch').onclick=getRate;
  if(isNew&&g('ccy').value.toUpperCase()!==hc)getRate()}
 var DEMO=false,WK='tp_wx',WX=(function(){try{return JSON.parse(localStorage.getItem(WK))||{}}catch(e){return{}}})(),wxLast={};
