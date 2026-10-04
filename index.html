@@ -47,12 +47,23 @@ function daysBetween(a,b){return Math.round((pd(b)-pd(a))/864e5)}
 function tripDays(t){var n=Math.max(0,daysBetween(t.start,t.end)),a=[];for(var i=0;i<=n&&i<120;i++){var d=pd(t.start);d.setDate(d.getDate()+i);a.push(iso(d))}return a}
 var COLS=['trips','flights','acts','hotels','expenses','packing'],K='tp_data',store;
 function loadStore(){try{store=JSON.parse(localStorage.getItem(K))}catch(e){store=null}store=store||{};COLS.forEach(function(c){store[c]=store[c]||{}});store.del=store.del||{}}
-function persist(){try{localStorage.setItem(K,JSON.stringify(store))}catch(e){msg('Could not save on this device: '+e.message)}}
+var cloudPush=null;
+function persist(){try{localStorage.setItem(K,JSON.stringify(store))}catch(e){msg('Could not save on this device: '+e.message)}if(cloudPush)cloudPush()}
 function load(){COLS.forEach(function(c){S[c]=Object.keys(store[c]).map(function(id){return Object.assign({},store[c][id],{id:id})})})}
 function save(c,id,data){var o=Object.assign({},data);o._u=Date.now();store[c][id]=o;delete store.del[c+'/'+id];persist();load()}
 function merge(inc){var n=0;inc=inc||{};COLS.forEach(function(c){var ii=inc[c]||{};Object.keys(ii).forEach(function(id){var k=c+'/'+id,t=store.del[k]||0,cur=store[c][id],u=ii[id]._u||0;if(u>t&&(!cur||u>(cur._u||0))){store[c][id]=ii[id];delete store.del[k];n++}})});
  var dd=inc.del||{};Object.keys(dd).forEach(function(k){var p=k.split('/'),cur=store[p[0]]&&store[p[0]][p[1]];if(cur&&dd[k]>(cur._u||0)){delete store[p[0]][p[1]];n++}if(!(store.del[k]>=dd[k]))store.del[k]=dd[k]});persist();load();return n}
-function exportData(){var txt=JSON.stringify({app:'tripplanner',v:1,data:store}),name='trips-'+iso(new Date())+'.json',file=null;try{file=new File([txt],name,{type:'application/json'})}catch(e){}
+function showText(){var txt=JSON.stringify({app:'tripplanner',v:1,data:store});try{localStorage.setItem('tp_last',Date.now())}catch(e){}
+ modal('<h2>Copy your trips</h2><p class="mu">Copy this text. In the other app, tap <b>Import</b> and paste it.</p><textarea id="xt" readonly rows="8" style="font:12px monospace"></textarea><button type="button" id="cp" style="margin-top:8px">Copy text</button><div class="mu" id="cpm" style="margin-top:6px"></div>',function(){});
+ var m=$('.modal'),ta=m.querySelector('#xt'),note=m.querySelector('#cpm');ta.value=txt;ta.onfocus=function(){ta.select()};m.querySelector('#mX').style.display='none';m.querySelector('#mOk').textContent='Done';
+ m.querySelector('#cp').onclick=function(){var done=function(){note.textContent='Copied ✓'},manual=function(){ta.focus();ta.select();try{if(document.execCommand('copy'))return done()}catch(e){}note.textContent='Could not copy automatically. The text is selected: copy it by hand.'};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(done).catch(manual);else manual()}}
+function importText(txt){var j=JSON.parse(txt);if(!j||j.app!=='tripplanner')throw new Error('this is not Trip Planner data');return merge(j.data)}
+function importForm(){
+ modal('<h2>Import trips</h2><p class="mu">Choose an exported file, or paste copied text. Changes are merged and the newest edit wins.</p><button type="button" id="pickFile">Choose file…</button><label>Or paste text here</label><textarea name="txt" rows="6" placeholder="Paste here"></textarea>',
+  function(v){if(!v.txt){msg('Choose a file or paste the text first.');return false}var n;try{n=importText(v.txt)}catch(e){msg('Import failed: '+e.message);return false}setTimeout(function(){msg(n+' change'+(n===1?'':'s')+' imported')},0)});
+ var m=$('.modal');m.querySelector('#mOk').textContent='Import';m.querySelector('#pickFile').onclick=function(){$('#fi').click()}}
+function exportData(){if(DEMO){showText();return}var txt=JSON.stringify({app:'tripplanner',v:1,data:store}),name='trips-'+iso(new Date())+'.json',file=null;try{file=new File([txt],name,{type:'application/json'})}catch(e){}
  localStorage.setItem('tp_last',Date.now());
  if(file&&navigator.canShare&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:'Trip Planner data'}).catch(function(){});
  else{var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove();msg('Exported '+name)}
@@ -78,8 +89,8 @@ function home(app){
  app.innerHTML=h;
  app.querySelectorAll('[data-open]').forEach(function(e){e.onclick=function(){view.tripId=e.dataset.open;view.tab='it';view.day=null;render()}});
  $('#newTrip').onclick=function(){tripForm()};
- $('#exp').onclick=exportData;$('#imp').onclick=function(){$('#fi').click()};
- $('#fi').onchange=function(){var f=this.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var j=JSON.parse(r.result);if(j.app!=='tripplanner')throw new Error('this is not a Trip Planner file');var n=merge(j.data);render();msg(n+' change'+(n===1?'':'s')+' imported')}catch(e){msg('Import failed: '+e.message)}};r.readAsText(f)}}
+ $('#exp').onclick=exportData;$('#imp').onclick=importForm;
+ $('#fi').onchange=function(){var f=this.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var n=importText(r.result),mm=$('.modal');if(mm)mm.remove();render();msg(n+' change'+(n===1?'':'s')+' imported')}catch(e){msg('Import failed: '+e.message)}};r.readAsText(f)}}
 
 function trip(app,t){
  var days=tripDays(t);if(!view.day||days.indexOf(view.day)<0){var td=iso(new Date());view.day=days.indexOf(td)>=0?td:days[0]}
