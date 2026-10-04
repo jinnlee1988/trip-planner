@@ -17,9 +17,9 @@ h1{font-size:24px;margin:8px 0 16px}h2{font-size:18px;margin:0}
 button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 14px;cursor:pointer}
 button.p{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
 button.d{color:var(--dg)}button.l{border:0;background:none;padding:4px 8px;color:var(--ac)}
-.fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));box-shadow:0 4px 14px #0004;border-radius:28px;padding:14px 20px}
-.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--bd);display:flex;padding-bottom:env(safe-area-inset-bottom,0px)}
-.tabs button{flex:1;border:0;border-radius:0;padding:8px 2px;background:none;font-size:11px}.tabs i{display:block;font-style:normal;font-size:19px}.g2>div{min-width:0}input,select{min-width:0;height:44px}input[type=date]{-webkit-appearance:none;appearance:none;text-align:left}.sec{font-size:15px;margin:18px 2px 8px}.dh{margin:14px 2px 6px}.s{padding:6px 12px;font-size:14px}.cg+.cg{border-top:1px solid var(--bd)}.bar{height:10px;background:var(--bd);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%}.ck{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}.ck input{width:22px;height:22px;flex:none}.done{text-decoration:line-through;color:var(--mu)}.fab.t{bottom:calc(74px + env(safe-area-inset-bottom,0px))}
+.fab{position:fixed;right:max(16px,calc(50% - 304px));bottom:calc(20px + env(safe-area-inset-bottom,0px));box-shadow:0 4px 14px #0004;border-radius:28px;padding:14px 20px}
+.tabs{position:fixed;left:50%;bottom:0;width:100%;max-width:640px;transform:translateX(-50%);background:var(--card);border-top:1px solid var(--bd);display:flex;padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs button{flex:1;border:0;border-radius:0;padding:8px 2px;background:none;font-size:11px}.tabs i{display:block;font-style:normal;font-size:19px}.g2>div{min-width:0}input,select{min-width:0;height:44px}input[type=date]{-webkit-appearance:none;appearance:none;text-align:left}.sec{font-size:15px;margin:18px 2px 8px}.dh{margin:14px 2px 6px}.s{padding:6px 12px;font-size:14px}@media(min-width:700px){.tabs{border:1px solid var(--bd);border-bottom:0;border-radius:14px 14px 0 0}}.cg+.cg{border-top:1px solid var(--bd)}.bar{height:10px;background:var(--bd);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%}.ck{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}.ck input{width:22px;height:22px;flex:none}.done{text-decoration:line-through;color:var(--mu)}.fab.t{bottom:calc(74px + env(safe-area-inset-bottom,0px))}
 .tabs .on{color:var(--ac);font-weight:700}.tabs .off{opacity:.4}
 .days{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px}
 .days button{white-space:nowrap;flex:none;text-align:center;line-height:1.2}
@@ -53,9 +53,14 @@ function load(){COLS.forEach(function(c){S[c]=Object.keys(store[c]).map(function
 function save(c,id,data){var o=Object.assign({},data);o._u=Date.now();store[c][id]=o;delete store.del[c+'/'+id];persist();load()}
 function merge(inc){var n=0;inc=inc||{};COLS.forEach(function(c){var ii=inc[c]||{};Object.keys(ii).forEach(function(id){var k=c+'/'+id,t=store.del[k]||0,cur=store[c][id],u=ii[id]._u||0;if(u>t&&(!cur||u>(cur._u||0))){store[c][id]=ii[id];delete store.del[k];n++}})});
  var dd=inc.del||{};Object.keys(dd).forEach(function(k){var p=k.split('/'),cur=store[p[0]]&&store[p[0]][p[1]];if(cur&&dd[k]>(cur._u||0)){delete store[p[0]][p[1]];n++}if(!(store.del[k]>=dd[k]))store.del[k]=dd[k]});persist();load();return n}
+function saveFile(txt,note){var name='trips-'+iso(new Date())+'.json',file=null;try{file=new File([txt],name,{type:'application/json'})}catch(e){}
+ function dl(){try{var a=document.createElement('a'),u=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(u)},1500);note.textContent='Saved as '+name+'. Check your Downloads folder.'}catch(e){note.textContent='Could not save a file here. Use Copy text instead.'}}
+ if(file&&navigator.canShare&&navigator.canShare({files:[file]})&&/Android|iPhone|iPad/i.test(navigator.userAgent)){navigator.share({files:[file],title:'Trip Planner data'}).then(function(){note.textContent='Shared ✓'}).catch(function(e){if(!e||e.name!=='AbortError')dl()});return}
+ dl()}
 function showText(){var txt=JSON.stringify({app:'tripplanner',v:1,data:store});try{localStorage.setItem('tp_last',Date.now())}catch(e){}
- modal('<h2>Copy your trips</h2><p class="mu">Copy this text. In the other app, tap <b>Import</b> and paste it.</p><textarea id="xt" readonly rows="8" style="font:12px monospace"></textarea><button type="button" id="cp" style="margin-top:8px">Copy text</button><div class="mu" id="cpm" style="margin-top:6px"></div>',function(){});
+ modal('<h2>Export your trips</h2><p class="mu">'+(DEMO?'Copy this text. In the other app, tap <b>Import</b> and paste it.':'Save a file to send, or copy the text and paste it into <b>Import</b> on the other device.')+'</p><textarea id="xt" readonly rows="6" style="font:12px monospace"></textarea><div class="row" style="gap:8px;margin-top:8px">'+(DEMO?'':'<button type="button" id="sv">Save file</button>')+'<button type="button" id="cp">Copy text</button></div><div class="mu" id="cpm" style="margin-top:6px"></div>',function(){});
  var m=$('.modal'),ta=m.querySelector('#xt'),note=m.querySelector('#cpm');ta.value=txt;ta.onfocus=function(){ta.select()};m.querySelector('#mX').style.display='none';m.querySelector('#mOk').textContent='Done';
+ var sv=m.querySelector('#sv');if(sv)sv.onclick=function(){saveFile(txt,note)};
  m.querySelector('#cp').onclick=function(){var done=function(){note.textContent='Copied ✓'},manual=function(){ta.focus();ta.select();try{if(document.execCommand('copy'))return done()}catch(e){}note.textContent='Could not copy automatically. The text is selected: copy it by hand.'};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(done).catch(manual);else manual()}}
 function importText(txt){var j=JSON.parse(txt);if(!j||j.app!=='tripplanner')throw new Error('this is not Trip Planner data');return merge(j.data)}
@@ -63,11 +68,7 @@ function importForm(){
  modal('<h2>Import trips</h2><p class="mu">Choose an exported file, or paste copied text. Changes are merged and the newest edit wins.</p><button type="button" id="pickFile">Choose file…</button><label>Or paste text here</label><textarea name="txt" rows="6" placeholder="Paste here"></textarea>',
   function(v){if(!v.txt){msg('Choose a file or paste the text first.');return false}var n;try{n=importText(v.txt)}catch(e){msg('Import failed: '+e.message);return false}setTimeout(function(){msg(n+' change'+(n===1?'':'s')+' imported')},0)});
  var m=$('.modal');m.querySelector('#mOk').textContent='Import';m.querySelector('#pickFile').onclick=function(){$('#fi').click()}}
-function exportData(){if(DEMO){showText();return}var txt=JSON.stringify({app:'tripplanner',v:1,data:store}),name='trips-'+iso(new Date())+'.json',file=null;try{file=new File([txt],name,{type:'application/json'})}catch(e){}
- localStorage.setItem('tp_last',Date.now());
- if(file&&navigator.canShare&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:'Trip Planner data'}).catch(function(){});
- else{var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove();msg('Exported '+name)}
- render()}
+function exportData(){showText()}
 function del(c,id){delete store[c][id];store.del[c+'/'+id]=Date.now();persist();load()}
 
 function render(){try{render0()}catch(e){$('#app').innerHTML='<div class="card"><b>Something went wrong</b><p class="mu">'+esc(e&&e.message)+'</p><button id="rs">Back to trips</button></div>';$('#rs').onclick=function(){view.tripId=null;render()}}}
