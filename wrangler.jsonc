@@ -1,8 +1,23 @@
 {
-  // Cloudflare Worker that serves the Trip Planner app (static files only for now)
+  // Cloudflare Worker for the Trip Planner app.
+  // Static files come from ./public; src/worker.js handles /api/* (login check + sync).
   "name": "trip-planner",
+  "main": "src/worker.js",
   "compatibility_date": "2026-11-10",
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "trip-planner",
+      "database_id": "958c67d4-7c53-4df0-9cf3-4dad1d4f3b85"
+    }
+  ],
+  "vars": {
+    "TEAM_DOMAIN": "https://justdreamz.cloudflareaccess.com",
+    // AUD tag of the Cloudflare Access application. Empty = sign-in switched off.
+    "POLICY_AUD": ""
   }
 }
