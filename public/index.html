@@ -59,7 +59,7 @@ function loadStore(){try{store=JSON.parse(localStorage.getItem(K))}catch(e){stor
 var cloudPush=null;
 function persist(){try{localStorage.setItem(K,JSON.stringify(store))}catch(e){msg('Could not save on this device: '+e.message)}if(cloudPush)cloudPush();if(SY.email&&!syQuiet){syPut();syKick()}}
 function load(){COLS.forEach(function(c){S[c]=Object.keys(store[c]).map(function(id){return Object.assign({},store[c][id],{id:id})})})}
-function save(c,id,data){var o=Object.assign({},data);o._u=Date.now();store[c][id]=o;delete store.del[c+'/'+id];syMark(c+'/'+id);persist();load()}
+function save(c,id,data){if(roStop(c==='trips'?id:data&&data.trip))return;var o=Object.assign({},data);o._u=Date.now();store[c][id]=o;delete store.del[c+'/'+id];syMark(c+'/'+id);persist();load()}
 function merge(inc,fromSync){var n=0;inc=inc||{};COLS.forEach(function(c){var ii=inc[c]||{};Object.keys(ii).forEach(function(id){var k=c+'/'+id,t=store.del[k]||0,cur=store[c][id],u=ii[id]._u||0;if(u>t&&(!cur||u>(cur._u||0))){store[c][id]=ii[id];delete store.del[k];if(!fromSync)syMark(k);n++}})});
  var dd=inc.del||{};Object.keys(dd).forEach(function(k){var p=k.split('/'),cur=store[p[0]]&&store[p[0]][p[1]];if(cur&&dd[k]>(cur._u||0)){delete store[p[0]][p[1]];n++}if(!(store.del[k]>=dd[k])){store.del[k]=dd[k];if(!fromSync)syMark(k,p[0]==='trips'?p[1]:cur&&cur.trip)}});persist();load();return n}
 function saveFile(txt,note){var name='trips-'+iso(new Date())+'.json',file=null;try{file=new File([txt],name,{type:'application/json'})}catch(e){}
@@ -106,9 +106,30 @@ function syncNow(){if(sy.st!=='in')return;if(sy.busy){sy.again=true;return}sy.bu
   if(j.email!==SY.email){sy.st='ask';sy.me=j.email;syPaint();return}
   Object.keys(sent).forEach(function(k){var p=k.split('/'),r=store[p[0]]&&store[p[0]][p[1]],v=r?(r._u||0):store.del[k]?store.del[k]:-1;if(v===sent[k]){delete SY.d[k];delete SY.dt[k]}});
   var inc=j.recs||{},n=0;inc.del=j.del||{};syQuiet=true;try{n=merge(inc,true)}finally{syQuiet=false}
-  SY.cur=j.cursor||0;SY.roles=j.roles||{};SY.at=Date.now();syPut();sy.err=0;sy.off=0;
+  n+=syPrune(SY.roles,j.roles||{});SY.cur=j.cursor||0;SY.roles=j.roles||{};SY.at=Date.now();syPut();sy.err=0;sy.off=0;
   if(n)syRender();else syPaint();
   if(sy.again||Object.keys(SY.d).length)setTimeout(syncNow,50)}).catch(function(){sy.busy=false;sy.off=1;syPaint()})}
+function roleOf(id){return SY.email&&SY.roles&&SY.roles[id]||''}
+function ro(id){var r=roleOf(id);return r==='viewer'||r==='viewer-nb'}
+function roStop(id){if(!id||!ro(id))return false;setTimeout(function(){msg('This trip is shared with you as view only. Nothing was changed.')},0);return true}
+function syPrune(prev,now){var n=0,gone={};if(prev)Object.keys(prev).forEach(function(t){if(!now[t])gone[t]=1});
+ COLS.forEach(function(c){Object.keys(store[c]).forEach(function(id){var r=store[c][id],t=c==='trips'?id:r.trip;if(gone[t]||(c==='expenses'&&now[t]==='viewer-nb')){delete store[c][id];delete SY.d[c+'/'+id];n++}})});
+ if(n){syQuiet=true;try{persist();load()}finally{syQuiet=false}}return n}
+var RL={owner:'Owner',editor:'Can edit',viewer:'View only','viewer-nb':'View only, budget hidden'};
+function shareForm(t){var mine=roleOf(t.id),own=mine==='owner';
+ modal('<h2>👥 Share trip</h2><p class="mu">'+esc(t.dest)+'</p><div id="shL" class="mu">Loading…</div>'+(own?'<label>Add a person (their email)</label><input name="em" type="email" inputmode="email" autocapitalize="none" autocomplete="off" placeholder="name@example.com"><label>They can</label><select name="rl"><option value="editor">Edit everything</option><option value="viewer">View only</option><option value="viewer-nb">View only, budget hidden</option></select><button type="button" class="p" id="shAdd" style="margin-top:10px">Add</button><div class="mu" style="margin-top:10px;font-size:13px">They open this app and sign in with that email. To change what someone can do, add them again with the new choice. A new person must also be on the allowed list in Cloudflare Access.</div>':'<button type="button" class="d" id="shLv" style="margin-top:12px">Leave this trip</button>'),function(){});
+ var m=$('.modal'),L=m.querySelector('#shL');m.querySelector('#mX').style.display='none';m.querySelector('#mOk').textContent='Done';
+ var ER={'bad-email':'Please enter a full email address.','self':'That is your own email.','limit':'This trip already has the maximum number of people.','bad-role':'Please choose what they can do.'};
+ function show(j){if(!m.isConnected)return;if(!j||j.out){L.textContent='Please sign in first.';return}if(j.left){m.remove();view.tripId=null;syncNow();render();return}
+  if(j.error&&!j.members){L.textContent='Could not load the sharing list. Try again later.';return}if(j.bad){L.textContent='Could not reach the server. Try again later.';return}
+  if(j.ok===false)msg(ER[j.error]||'That did not work.');else{var er=m.querySelector('#mErr');if(er)er.style.display='none'}
+  var a=j.members||[];L.innerHTML=a.length?a.map(function(x){return '<div class="row" style="padding:6px 0;border-top:1px solid var(--bd)"><div class="sp" style="min-width:0;overflow-wrap:anywhere;color:var(--tx)">'+esc(x.email)+'<div class="mu" style="font-size:13px">'+esc(RL[x.role]||x.role)+'</div></div>'+(own&&x.role!=='owner'?'<button type="button" class="l" data-rm="'+esc(x.email)+'">Remove</button>':'')+'</div>'}).join(''):'Shared with you as: '+esc(RL[j.role]||j.role);
+  L.querySelectorAll('[data-rm]').forEach(function(b){b.onclick=function(){if(!b.dataset.armed){b.dataset.armed=1;b.textContent='Remove?';b.style.color='var(--dg)';setTimeout(function(){if(b.isConnected){delete b.dataset.armed;b.textContent='Remove';b.style.color=''}},4000)}else post({trip:t.id,email:b.dataset.rm,role:''})}})}
+ function fail(){if(m.isConnected)L.textContent='Could not reach the server (offline?). Try again later.'}
+ function post(o){syReq('/api/share',o).then(show).catch(fail)}
+ syReq('/api/share?trip='+encodeURIComponent(t.id)).then(show).catch(fail);
+ var ad=m.querySelector('#shAdd');if(ad)ad.onclick=function(){var e=m.querySelector('[name=em]'),v=e.value.trim();if(!v){msg(ER['bad-email']);return}post({trip:t.id,email:v,role:m.querySelector('[name=rl]').value});e.value=''};
+ var lv=m.querySelector('#shLv');if(lv)lv.onclick=function(){if(!lv.dataset.armed){lv.dataset.armed=1;lv.textContent='Tap again to leave';setTimeout(function(){if(lv.isConnected){delete lv.dataset.armed;lv.textContent='Leave this trip'}},4000)}else post({trip:t.id,leave:true})}}
 function syRender(){var a=document.activeElement;if(!$('.modal')&&!(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)))render();else syPaint()}
 function syOut(){fetch('/cdn-cgi/access/logout',{credentials:'same-origin',redirect:'manual'}).catch(function(){}).then(function(){return syReq('/api/me')}).then(function(j){if(j&&j.ok)location.href='/cdn-cgi/access/logout';else{sy.st='out';syPaint()}}).catch(function(){sy.st='out';syPaint()})}
 function syPaint(){var e=$('#syn');if(!e)return;var h='';
@@ -119,7 +140,7 @@ function syPaint(){var e=$('#syn');if(!e)return;var h='';
  b=e.querySelector('#sOut');if(b)b.onclick=syOut;b=e.querySelector('#sUse');if(b)b.onclick=function(){syStart(sy.me);syPaint()}}
 function syWake(){if(document.visibilityState&&document.visibilityState!=='visible')return;if(sy.st==='in'&&!sy.off)syncNow();else syCheck()}
 function actPut(a,patch){var o=Object.assign({},a);delete o.id;delete o._u;save('acts',a.id,Object.assign(o,patch))}
-function del(c,id){var r=store[c][id];delete store[c][id];store.del[c+'/'+id]=Date.now();syMark(c+'/'+id,c==='trips'?id:r&&r.trip);persist();load()}
+function del(c,id){var r=store[c][id];if(roStop(c==='trips'?id:r&&r.trip))return;delete store[c][id];store.del[c+'/'+id]=Date.now();syMark(c+'/'+id,c==='trips'?id:r&&r.trip);persist();load()}
 
 function render(){try{render0()}catch(e){$('#app').innerHTML='<div class="card"><b>Something went wrong</b><p class="mu">'+esc(e&&e.message)+'</p><button id="rs">Back to trips</button></div>';$('#rs').onclick=function(){view.tripId=null;render()}}}
 function render0(){
@@ -133,7 +154,7 @@ function home(app){
  if(!ts.length)h+='<div class="card mu">No trips yet. Tap “+ New trip” to start planning.</div>';
  ts.forEach(function(t){
   var n=daysBetween(today,t.start),cd=today>t.end?'Completed':today>=t.start?'Happening now':n===1?'Tomorrow':n+' days to go';
-  h+='<div class="card row" data-open="'+t.id+'" style="cursor:pointer"><span class="emoji">'+esc(t.emoji||'🌍')+'</span><div class="sp"><h2>'+esc(t.dest)+'</h2><div class="mu">'+fmt(t.start,{day:'numeric',month:'short'})+' – '+fmt(t.end)+'</div></div><b style="color:var(--ac)">'+cd+'</b><span class="mu">›</span></div>'});
+  h+='<div class="card row" data-open="'+t.id+'" style="cursor:pointer"><span class="emoji">'+esc(t.emoji||'🌍')+'</span><div class="sp"><h2>'+esc(t.dest)+'</h2><div class="mu">'+fmt(t.start,{day:'numeric',month:'short'})+' – '+fmt(t.end)+(roleOf(t.id)&&roleOf(t.id)!=='owner'?' · 👥 shared with you':'')+'</div></div><b style="color:var(--ac)">'+cd+'</b><span class="mu">›</span></div>'});
  h+='<button class="p fab" id="newTrip">+ New trip</button>';
  var lb=+localStorage.getItem('tp_last')||0,old=ts.length&&(!lb||Date.now()-lb>7*864e5);
  h+='<div class="row" style="gap:8px;margin-top:20px;flex-wrap:wrap"><button class="s" id="exp">⬆ Export</button><button class="s" id="imp">⬇ Import</button><button class="s" id="thm">◐ '+thLabel()+'</button>'+(old?'<span class="mu" style="color:var(--dg)">Backup due, tap Export</span>':'')+'</div><div id="syn" class="mu" style="margin-top:10px;font-size:13px"></div><input type="file" id="fi" accept=".json,application/json" style="display:none">';
@@ -145,7 +166,7 @@ function home(app){
 
 function trip(app,t){
  var days=tripDays(t);if(!view.day||days.indexOf(view.day)<0){var td=iso(new Date());view.day=days.indexOf(td)>=0?td:days[0]}
- var h='<div class="row"><button class="l" id="back">‹ Trips</button><span class="sp"></span><button class="l" id="edTrip">Edit</button></div>';
+ var h='<div class="row"><button class="l" id="back">‹ Trips</button><span class="sp"></span>'+(sy.st==='in'&&roleOf(t.id)?'<button class="l" id="shTrip">👥 Share</button>':'')+(ro(t.id)?'<span class="tg">View only</span>':'<button class="l" id="edTrip">Edit</button>')+'</div>';
  h+='<div class="row" style="margin:6px 0 14px"><span class="emoji">'+esc(t.emoji||'🌍')+'</span><div><h1 style="margin:0">'+esc(t.dest)+'</h1><div class="mu">'+fmt(t.start,{day:'numeric',month:'short'})+' – '+fmt(t.end)+'</div></div></div>';
  if(view.tab==='it')h+=itin(t,days);else if(view.tab==='fl')h+=flights(t);else if(view.tab==='ho')h+=hotels(t);else if(view.tab==='bu')h+=budget(t);else if(view.tab==='pk')h+=packing(t);
  else h+='<div class="card mu">Coming in Phase 2.</div>';
@@ -153,7 +174,8 @@ function trip(app,t){
  h+='<div class="tabs">'+tb.map(function(x,i){return '<button data-tab="'+x[0]+'" class="'+(view.tab===x[0]?'on':'')+''+'"><i>'+x[1]+'</i>'+x[2]+'</button>'}).join('')+'</div>';
  app.innerHTML=h;
  $('#back').onclick=function(){view.tripId=null;render()};
- $('#edTrip').onclick=function(){tripForm(t)};
+ var ed=$('#edTrip');if(ed)ed.onclick=function(){tripForm(t)};var sh=$('#shTrip');if(sh)sh.onclick=function(){shareForm(t)};
+ if(ro(t.id)){app.querySelectorAll('.fab').forEach(function(b){b.style.display='none'});var pq=$('#pkTxt'),pc=pq&&pq.closest&&pq.closest('.card');if(pc)pc.style.display='none'}
  app.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){view.tab=b.dataset.tab;render()}});
  app.querySelectorAll('[data-day]').forEach(function(b){b.onclick=function(){view.day=b.dataset.day;render()}});
  app.querySelectorAll('[data-act]').forEach(function(b){b.onclick=function(){actForm(t,S.acts.find(function(a){return a.id===b.dataset.act}))}});
@@ -208,7 +230,7 @@ function hotels(t){
 var CATS=[['activities','🎟','Activities'],['food','🍜','Food'],['hotel','🏨','Hotel'],['shopping','🛍','Shopping'],['transport','🚆','Transport'],['other','📌','Other']],PC=['Clothes','Documents','Electronics','Health','Toiletries','Other'];
 function fm(n){return Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
 function cat(k){return CATS.find(function(c){return c[0]===k})||CATS[5]}
-function budget(t){
+function budget(t){if(roleOf(t.id)==='viewer-nb')return '<div class="card mu">The budget of this trip is not shared with you.</div>';
  var hc=t.cur||'SGD',es=S.expenses.filter(function(e){return e.trip===t.id}),paid=0,plan=0,bc={},bd=+t.budget||0,h='';
  es.forEach(function(e){var v=+e.home||0;if(e.st==='planned')plan+=v;else paid+=v;var ck=cat(e.cat)[0];bc[ck]=(bc[ck]||0)+v});
  var tot=paid+plan,pct=bd?tot/bd*100:0,pp=bd?Math.min(100,paid/bd*100):0,pl=bd?Math.max(0,Math.min(100-pp,plan/bd*100)):0,col=pct>100?'var(--dg)':pct>=80?'#d97706':'var(--ac)';
@@ -339,7 +361,7 @@ function tripForm(t){
  modal('<h2>'+(t.id?'Edit trip':'New trip')+'</h2>'+f('dest','Destination',t.dest,'text','placeholder="e.g. Tokyo, Japan"')+f('emoji','Emoji',t.emoji||'🌍')+'<div class="g2"><div>'+f('start','Start date',t.start||today,'date')+'</div><div>'+f('end','End date',t.end||today,'date')+'</div></div>'+f('cur','Home currency',t.cur||'SGD')+f('budget','Total budget in home currency (optional)',t.budget||'','number','step="any" inputmode="decimal"'),
  function(v){if(!v.dest||!v.start||!v.end||v.end<v.start){msg('Please enter a destination and valid dates.');return false}
   var id=t.id||uid();save('trips',id,{dest:v.dest,emoji:v.emoji,start:v.start,end:v.end,cur:(v.cur||'SGD').toUpperCase(),budget:+v.budget||0});if(!t.id){view.tripId=id;view.tab='it';view.day=null}},
- t.id&&function(){['flights','acts','hotels','expenses','packing'].forEach(function(c){S[c].filter(function(x){return x.trip===t.id}).forEach(function(x){del(c,x.id)})});del('trips',t.id);view.tripId=null})}
+ t.id&&(!roleOf(t.id)||roleOf(t.id)==='owner')&&function(){['flights','acts','hotels','expenses','packing'].forEach(function(c){S[c].filter(function(x){return x.trip===t.id}).forEach(function(x){del(c,x.id)})});del('trips',t.id);view.tripId=null})}
 
 function safeUrl(u){u=(u||'').trim();if(!u)return '';if(!/^https?:\/\//i.test(u)){if(/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(u))u='https://'+u;else return ''}return /^https?:\/\/[^\s]+$/i.test(u)?u:''}
 function openUrl(u){var x=safeUrl(u);if(x)window.open(x,'_blank','noopener')}

@@ -232,7 +232,7 @@ async function sync(request, env, email) {
   st.push(
     db
       .prepare(
-        'SELECT col, id, data, u, del FROM records WHERE trip IN (SELECT trip FROM members WHERE email = ?1) AND (seq > ?2 OR trip IN (SELECT trip FROM members WHERE email = ?1 AND seq > ?2))'
+        "SELECT col, id, data, u, del FROM records WHERE trip IN (SELECT trip FROM members WHERE email = ?1) AND (seq > ?2 OR trip IN (SELECT trip FROM members WHERE email = ?1 AND seq > ?2)) AND NOT (col = 'expenses' AND trip IN (SELECT trip FROM members WHERE email = ?1 AND role = 'viewer-nb'))"
       )
       .bind(email, since)
   );
@@ -247,13 +247,79 @@ async function sync(request, env, email) {
     if (r.del) out.del[r.col + '/' + r.id] = r.u;
     else {
       try {
-        (out.recs[r.col] = out.recs[r.col] || {})[r.id] = JSON.parse(r.data);
+        const d = JSON.parse(r.data);
+        // "View only, budget hidden": the trip's total budget is not sent either.
+        if (r.col === 'trips' && out.roles[r.id] === 'viewer-nb') delete d.budget;
+        (out.recs[r.col] = out.recs[r.col] || {})[r.id] = d;
       } catch (e) {}
     }
   });
   const n = res[iRoles + 2].results[0];
   out.cursor = n ? n.n : 0;
   return json(out);
+}
+
+/* ---------- sharing ----------
+   GET  /api/share?trip=ID                      -> who is on the trip
+   POST /api/share { trip, email, role }        -> owner adds a person or changes what they can do
+   POST /api/share { trip, email, role: '' }    -> owner removes a person
+   POST /api/share { trip, leave: true }        -> a person who is not the owner leaves
+   Roles: owner, editor, viewer, viewer-nb (view only, budget hidden). */
+
+const SHARE_ROLES = ['editor', 'viewer', 'viewer-nb'];
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
+const MAX_MEMBERS = 20;
+
+async function memberList(db, trip, mine) {
+  if (mine !== 'owner' && mine !== 'editor') return [];
+  return (await db.prepare("SELECT email, role FROM members WHERE trip = ?1 ORDER BY role = 'owner' DESC, email").bind(trip).all()).results;
+}
+
+async function share(request, env, email, url) {
+  const db = env.DB;
+  await schema(db);
+  let body = null;
+  if (request.method === 'POST') {
+    try {
+      body = JSON.parse(await request.text());
+    } catch (e) {
+      return json({ error: 'bad-json' }, 400);
+    }
+    if (!body || typeof body !== 'object') return json({ error: 'bad-json' }, 400);
+  }
+  const trip = body ? body.trip : url.searchParams.get('trip');
+  if (typeof trip !== 'string' || !ID_RE.test(trip)) return json({ error: 'bad-trip' }, 400);
+  const me = (await db.prepare('SELECT role FROM members WHERE trip = ?1 AND email = ?2').bind(trip, email).all()).results[0];
+  if (!me) return json({ error: 'not-found' }, 404);
+  const done = async (extra) => json(Object.assign({ ok: true, role: me.role, members: await memberList(db, trip, me.role) }, extra || {}));
+  if (!body) return done();
+
+  if (body.leave === true) {
+    if (me.role === 'owner') return json({ ok: false, error: 'owner-cannot-leave' });
+    await db.prepare("DELETE FROM members WHERE trip = ?1 AND email = ?2 AND role <> 'owner'").bind(trip, email).all();
+    return json({ ok: true, left: true });
+  }
+  if (me.role !== 'owner') return json({ error: 'forbidden' }, 403);
+  const who = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!EMAIL_RE.test(who)) return done({ ok: false, error: 'bad-email' });
+  if (who === email) return done({ ok: false, error: 'self' });
+  if (body.role === '' || body.role == null) {
+    await db.prepare("DELETE FROM members WHERE trip = ?1 AND email = ?2 AND role <> 'owner'").bind(trip, who).all();
+    return done();
+  }
+  if (SHARE_ROLES.indexOf(body.role) < 0) return done({ ok: false, error: 'bad-role' });
+  const cnt = (await db.prepare('SELECT COUNT(*) AS n FROM members WHERE trip = ?1 AND email <> ?2').bind(trip, who).all()).results[0].n;
+  if (cnt >= MAX_MEMBERS) return done({ ok: false, error: 'limit' });
+  // A new sequence number makes the person's next sync fetch the whole trip.
+  await db.batch([
+    db.prepare("UPDATE counter SET n = n + 1 WHERE k = 'seq'"),
+    db
+      .prepare(
+        "INSERT INTO members (trip, email, role, seq) VALUES (?1, ?2, ?3, (SELECT n FROM counter WHERE k = 'seq')) ON CONFLICT (trip, email) DO UPDATE SET role = excluded.role, seq = excluded.seq WHERE members.role <> 'owner'"
+      )
+      .bind(trip, who, body.role),
+  ]);
+  return done();
 }
 
 /* ---------- routing ---------- */
@@ -273,6 +339,7 @@ export default {
       if (!email) return json({ error: 'signed-out' }, 401);
       if (url.pathname === '/api/me' && request.method === 'GET') return json({ ok: true, email: email });
       if (url.pathname === '/api/sync' && request.method === 'POST') return await sync(request, env, email);
+      if (url.pathname === '/api/share' && (request.method === 'GET' || request.method === 'POST')) return await share(request, env, email, url);
       return json({ error: 'not-found' }, 404);
     } catch (e) {
       return json({ error: 'server', message: String((e && e.message) || e) }, 500);
