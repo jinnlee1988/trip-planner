@@ -17,7 +17,7 @@
   ],
   "vars": {
     "TEAM_DOMAIN": "https://justdreamz.cloudflareaccess.com",
-    // AUD tag of the Cloudflare Access application. Empty = sign-in switched off.
-    "POLICY_AUD": ""
+    // AUD tag of the Cloudflare Access application. Not a secret. Empty = sign-in switched off.
+    "POLICY_AUD": "ef99d58bf5b612ca4d8fb3378524d64798274d596f04097f29998d14721fc2b7"
   }
 }
