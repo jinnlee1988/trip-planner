@@ -166,6 +166,8 @@ async function sync(request, env, email) {
       }
     });
   }
+  // Trips in this push that already belong to another account: nothing is saved for them.
+  const denied = uk.filter((t) => !roles[t] && inRecs.some((r) => r.c === 'trips' && r.i === t));
   const okRecs = inRecs.filter((r) => canEdit(roles[r.t]));
 
   // 4. Incoming deletions. The trip comes from the stored row when there is one.
@@ -239,7 +241,7 @@ async function sync(request, env, email) {
   st.push(db.prepare("SELECT n FROM counter WHERE k = 'seq'"));
   const res = await db.batch(st);
 
-  const out = { ok: true, email: email, cursor: 0, recs: {}, del: {}, roles: {} };
+  const out = { ok: true, email: email, cursor: 0, recs: {}, del: {}, roles: {}, denied: denied };
   res[iRoles].results.forEach((r) => {
     out.roles[r.trip] = r.role;
   });

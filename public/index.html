@@ -82,7 +82,7 @@ function thLabel(){var v=thGet();return v==='light'?'Light':v==='dark'?'Dark':'A
 function thNext(){var v=thGet(),n=v===''?'light':v==='light'?'dark':'';try{if(n)localStorage.setItem('tp_theme',n);else localStorage.removeItem('tp_theme')}catch(e){}var r=document.documentElement;if(n)r.setAttribute('data-theme',n);else r.removeAttribute('data-theme')}
 function exportData(){showText()}
 /* ---- Sign-in and sync (Cloudflare version). Trips stay on this device; when signed in they are also kept in the account. ---- */
-var SY=(function(){try{return JSON.parse(localStorage.getItem('tp_sync'))||{}}catch(e){return{}}})(),syQuiet=false,sy={st:'',busy:false,again:false,off:0,err:0,tm:0,me:''};SY.d=SY.d||{};SY.dt=SY.dt||{};
+var SY=(function(){try{return JSON.parse(localStorage.getItem('tp_sync'))||{}}catch(e){return{}}})(),syQuiet=false,sy={st:'',busy:false,again:false,off:0,err:0,tm:0,me:'',re:{}};SY.d=SY.d||{};SY.dt=SY.dt||{};SY.no=SY.no||{};
 function syPut(){try{localStorage.setItem('tp_sync',JSON.stringify(SY))}catch(e){}}
 function syMark(k,trip){if(!SY.email)return;SY.d[k]=1;if(trip)SY.dt[k]=trip}
 function syAll(){COLS.forEach(function(c){Object.keys(store[c]).forEach(function(id){SY.d[c+'/'+id]=1})});Object.keys(store.del).forEach(function(k){SY.d[k]=1})}
@@ -91,7 +91,7 @@ function syReq(path,body){return fetch(path,{method:body?'POST':'GET',credential
  if(r.type==='opaqueredirect'||r.status===401||r.status===403||(r.status>=300&&r.status<400))return{out:1};
  if(!r.ok)return{bad:r.status};
  return r.json().catch(function(){return{bad:1}})})}
-function syStart(me){SY={email:me,cur:0,d:{},dt:{}};syAll();syPut();sy.st='in';syncNow()}
+function syStart(me){sy.re={};SY={email:me,cur:0,d:{},dt:{},no:{}};syAll();syPut();sy.st='in';syncNow()}
 function syCheck(){if(!window.fetch||location.protocol.indexOf('http')!==0)return;
  syReq('/api/me').then(function(j){sy.off=0;
   if(j&&j.ok&&j.email){if(SY.email&&SY.email!==j.email){sy.st='ask';sy.me=j.email}else if(!SY.email){syStart(j.email)}else{sy.st='in';syncNow()}}
@@ -99,14 +99,17 @@ function syCheck(){if(!window.fetch||location.protocol.indexOf('http')!==0)retur
   if(j&&j.bad)sy.err=1;syPaint()}).catch(function(){if(SY.email){sy.st='in';sy.off=1}syPaint()})}
 function syncNow(){if(sy.st!=='in')return;if(sy.busy){sy.again=true;return}sy.busy=true;sy.again=false;syPaint();
  var recs={},dels=[],sent={};
- Object.keys(SY.d).slice(0,300).forEach(function(k){var p=k.split('/'),r=store[p[0]]&&store[p[0]][p[1]];
+ Object.keys(SY.d).sort(function(a,b){return(b.indexOf('trips/')===0)-(a.indexOf('trips/')===0)}).slice(0,300).forEach(function(k){var p=k.split('/'),r=store[p[0]]&&store[p[0]][p[1]];
   if(r){(recs[p[0]]=recs[p[0]]||{})[p[1]]=r;sent[k]=r._u||0}else if(store.del[k]){dels.push({k:k,t:store.del[k],trip:SY.dt[k]||''});sent[k]=store.del[k]}else sent[k]=-1});
  syReq('/api/sync',{since:SY.cur||0,recs:recs,dels:dels}).then(function(j){sy.busy=false;
   if(!j||!j.ok){if(j&&j.out)sy.st='out';else sy.err=1;syPaint();return}
   if(j.email!==SY.email){sy.st='ask';sy.me=j.email;syPaint();return}
   Object.keys(sent).forEach(function(k){var p=k.split('/'),r=store[p[0]]&&store[p[0]][p[1]],v=r?(r._u||0):store.del[k]?store.del[k]:-1;if(v===sent[k]){delete SY.d[k];delete SY.dt[k]}});
   var inc=j.recs||{},n=0;inc.del=j.del||{};syQuiet=true;try{n=merge(inc,true)}finally{syQuiet=false}
-  n+=syPrune(SY.roles,j.roles||{});SY.cur=j.cursor||0;SY.roles=j.roles||{};SY.at=Date.now();syPut();sy.err=0;sy.off=0;
+  n+=syPrune(SY.roles,j.roles||{});SY.cur=j.cursor||0;SY.roles=j.roles||{};SY.at=Date.now();
+  var no0=JSON.stringify(SY.no);(j.denied||[]).forEach(function(t){SY.no[t]=1});Object.keys(SY.no).forEach(function(t){if(SY.roles[t]){SY.d['trips/'+t]=1;COLS.forEach(function(c){Object.keys(store[c]).forEach(function(id){if(store[c][id].trip===t)SY.d[c+'/'+id]=1})})}if(SY.roles[t]||!store.trips[t])delete SY.no[t]});if(JSON.stringify(SY.no)!==no0)n++;
+  Object.keys(store.trips).forEach(function(t){if(SY.roles[t]||SY.no[t]||sy.re[t]||SY.d['trips/'+t])return;sy.re[t]=1;SY.d['trips/'+t]=1;COLS.forEach(function(c){Object.keys(store[c]).forEach(function(id){if(store[c][id].trip===t)SY.d[c+'/'+id]=1})})});
+  syPut();sy.err=0;sy.off=0;
   if(n)syRender();else syPaint();
   if(sy.again||Object.keys(SY.d).length)setTimeout(syncNow,50)}).catch(function(){sy.busy=false;sy.off=1;syPaint()})}
 function roleOf(id){return SY.email&&SY.roles&&SY.roles[id]||''}
@@ -130,6 +133,9 @@ function shareForm(t){var mine=roleOf(t.id),own=mine==='owner';
  syReq('/api/share?trip='+encodeURIComponent(t.id)).then(show).catch(fail);
  var ad=m.querySelector('#shAdd');if(ad)ad.onclick=function(){var e=m.querySelector('[name=em]'),v=e.value.trim();if(!v){msg(ER['bad-email']);return}post({trip:t.id,email:v,role:m.querySelector('[name=rl]').value});e.value=''};
  var lv=m.querySelector('#shLv');if(lv)lv.onclick=function(){if(!lv.dataset.armed){lv.dataset.armed=1;lv.textContent='Tap again to leave';setTimeout(function(){if(lv.isConnected){delete lv.dataset.armed;lv.textContent='Leave this trip'}},4000)}else post({trip:t.id,leave:true})}}
+function tripCopy(t){var nid=uid(),o=Object.assign({},store.trips[t.id]);save('trips',nid,o);
+ COLS.forEach(function(c){if(c==='trips')return;Object.keys(store[c]).forEach(function(id){var r=store[c][id];if(r.trip!==t.id)return;save(c,uid(),Object.assign({},r,{trip:nid}));delete store[c][id];delete SY.d[c+'/'+id]})});
+ delete store.trips[t.id];delete SY.d['trips/'+t.id];delete SY.no[t.id];syPut();persist();load();view.tripId=nid;render();msg('Saved as your own trip. It will sync to your account.')}
 function syRender(){var a=document.activeElement;if(!$('.modal')&&!(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)))render();else syPaint()}
 function syOut(){fetch('/cdn-cgi/access/logout',{credentials:'same-origin',redirect:'manual'}).catch(function(){}).then(function(){return syReq('/api/me')}).then(function(j){if(j&&j.ok)location.href='/cdn-cgi/access/logout';else{sy.st='out';syPaint()}}).catch(function(){sy.st='out';syPaint()})}
 function syPaint(){var e=$('#syn');if(!e)return;var h='';
@@ -154,7 +160,7 @@ function home(app){
  if(!ts.length)h+='<div class="card mu">No trips yet. Tap “+ New trip” to start planning.</div>';
  ts.forEach(function(t){
   var n=daysBetween(today,t.start),cd=today>t.end?'Completed':today>=t.start?'Happening now':n===1?'Tomorrow':n+' days to go';
-  h+='<div class="card row" data-open="'+t.id+'" style="cursor:pointer"><span class="emoji">'+esc(t.emoji||'🌍')+'</span><div class="sp"><h2>'+esc(t.dest)+'</h2><div class="mu">'+fmt(t.start,{day:'numeric',month:'short'})+' – '+fmt(t.end)+(roleOf(t.id)&&roleOf(t.id)!=='owner'?' · 👥 shared with you':'')+'</div></div><b style="color:var(--ac)">'+cd+'</b><span class="mu">›</span></div>'});
+  h+='<div class="card row" data-open="'+t.id+'" style="cursor:pointer"><span class="emoji">'+esc(t.emoji||'🌍')+'</span><div class="sp"><h2>'+esc(t.dest)+'</h2><div class="mu">'+fmt(t.start,{day:'numeric',month:'short'})+' – '+fmt(t.end)+(roleOf(t.id)&&roleOf(t.id)!=='owner'?' · 👥 shared with you':'')+(sy.st==='in'&&SY.no[t.id]?' · ⚠ not synced':'')+'</div></div><b style="color:var(--ac)">'+cd+'</b><span class="mu">›</span></div>'});
  h+='<button class="p fab" id="newTrip">+ New trip</button>';
  var lb=+localStorage.getItem('tp_last')||0,old=ts.length&&(!lb||Date.now()-lb>7*864e5);
  h+='<div class="row" style="gap:8px;margin-top:20px;flex-wrap:wrap"><button class="s" id="exp">⬆ Export</button><button class="s" id="imp">⬇ Import</button><button class="s" id="thm">◐ '+thLabel()+'</button>'+(old?'<span class="mu" style="color:var(--dg)">Backup due, tap Export</span>':'')+'</div><div id="syn" class="mu" style="margin-top:10px;font-size:13px"></div><input type="file" id="fi" accept=".json,application/json" style="display:none">';
@@ -168,13 +174,14 @@ function trip(app,t){
  var days=tripDays(t);if(!view.day||days.indexOf(view.day)<0){var td=iso(new Date());view.day=days.indexOf(td)>=0?td:days[0]}
  var h='<div class="row"><button class="l" id="back">‹ Trips</button><span class="sp"></span>'+(sy.st==='in'&&roleOf(t.id)?'<button class="l" id="shTrip">👥 Share</button>':'')+(ro(t.id)?'<span class="tg">View only</span>':'<button class="l" id="edTrip">Edit</button>')+'</div>';
  h+='<div class="row" style="margin:6px 0 14px"><span class="emoji">'+esc(t.emoji||'🌍')+'</span><div><h1 style="margin:0">'+esc(t.dest)+'</h1><div class="mu">'+fmt(t.start,{day:'numeric',month:'short'})+' – '+fmt(t.end)+'</div></div></div>';
+ if(sy.st==='in'&&SY.no[t.id])h+='<div class="note" style="margin-bottom:12px"><b>⚠ Not synced.</b> This trip is already in another person’s account, so it stays only on this device. Ask them to share it with your email, or keep your own separate copy.<br><button class="s" id="cpTrip" style="margin-top:8px">Keep as my own copy</button></div>';
  if(view.tab==='it')h+=itin(t,days);else if(view.tab==='fl')h+=flights(t);else if(view.tab==='ho')h+=hotels(t);else if(view.tab==='bu')h+=budget(t);else if(view.tab==='pk')h+=packing(t);
  else h+='<div class="card mu">Coming in Phase 2.</div>';
  var tb=[['it','🗓','Itinerary'],['fl','🛫','Flights'],['ho','🏨','Hotels'],['bu','💰','Budget'],['pk','🎒','Packing']];
  h+='<div class="tabs">'+tb.map(function(x,i){return '<button data-tab="'+x[0]+'" class="'+(view.tab===x[0]?'on':'')+''+'"><i>'+x[1]+'</i>'+x[2]+'</button>'}).join('')+'</div>';
  app.innerHTML=h;
  $('#back').onclick=function(){view.tripId=null;render()};
- var ed=$('#edTrip');if(ed)ed.onclick=function(){tripForm(t)};var sh=$('#shTrip');if(sh)sh.onclick=function(){shareForm(t)};
+ var ed=$('#edTrip');if(ed)ed.onclick=function(){tripForm(t)};var cp=$('#cpTrip');if(cp)cp.onclick=function(){if(!cp.dataset.armed){cp.dataset.armed=1;cp.textContent='Tap again to make a copy'}else tripCopy(t)};var sh=$('#shTrip');if(sh)sh.onclick=function(){shareForm(t)};
  if(ro(t.id)){app.querySelectorAll('.fab').forEach(function(b){b.style.display='none'});var pq=$('#pkTxt'),pc=pq&&pq.closest&&pq.closest('.card');if(pc)pc.style.display='none'}
  app.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){view.tab=b.dataset.tab;render()}});
  app.querySelectorAll('[data-day]').forEach(function(b){b.onclick=function(){view.day=b.dataset.day;render()}});
