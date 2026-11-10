@@ -3,6 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trip Planner</title>
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0f766e"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Trips"><link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" href="icon-192.png">
+<script>try{var th=localStorage.getItem("tp_theme");if(th==="light"||th==="dark")document.documentElement.setAttribute("data-theme",th)}catch(e){}</script>
 <style>
 :root{--bg:#f6f4ef;--tx2:#3a4150;--pg:#e6e2d9;--card:#fff;--tx:#1d2330;--mu:#6b7280;--ac:#0f766e;--ac2:#e6f4f2;--bd:#e5e2da;--dg:#b91c1c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--tx2:#cdd2da;--pg:#0a0c0f;--card:#1e232b;--tx:#eef0f3;--mu:#9aa3b0;--ac:#2dd4bf;--ac2:#183533;--bd:#2d333d;--dg:#f87171}}
@@ -76,6 +77,9 @@ function importForm(){
  modal('<h2>Import trips</h2><p class="mu">Choose an exported file, or paste copied text. Changes are merged and the newest edit wins.</p><button type="button" id="pickFile">Choose file…</button><label>Or paste text here</label><textarea name="txt" rows="6" placeholder="Paste here"></textarea>',
   function(v){if(!v.txt){msg('Choose a file or paste the text first.');return false}var n;try{n=importText(v.txt)}catch(e){msg('Import failed: '+e.message);return false}setTimeout(function(){msg(n+' change'+(n===1?'':'s')+' imported')},0)});
  var m=$('.modal');m.querySelector('#mOk').textContent='Import';m.querySelector('#pickFile').onclick=function(){$('#fi').click()}}
+function thGet(){var v='';try{v=localStorage.getItem('tp_theme')||''}catch(e){}return v==='light'||v==='dark'?v:''}
+function thLabel(){var v=thGet();return v==='light'?'Light':v==='dark'?'Dark':'Auto'}
+function thNext(){var v=thGet(),n=v===''?'light':v==='light'?'dark':'';try{if(n)localStorage.setItem('tp_theme',n);else localStorage.removeItem('tp_theme')}catch(e){}var r=document.documentElement;if(n)r.setAttribute('data-theme',n);else r.removeAttribute('data-theme')}
 function exportData(){showText()}
 function actPut(a,patch){var o=Object.assign({},a);delete o.id;delete o._u;save('acts',a.id,Object.assign(o,patch))}
 function del(c,id){delete store[c][id];store.del[c+'/'+id]=Date.now();persist();load()}
@@ -95,11 +99,11 @@ function home(app){
   h+='<div class="card row" data-open="'+t.id+'" style="cursor:pointer"><span class="emoji">'+esc(t.emoji||'🌍')+'</span><div class="sp"><h2>'+esc(t.dest)+'</h2><div class="mu">'+fmt(t.start,{day:'numeric',month:'short'})+' – '+fmt(t.end)+'</div></div><b style="color:var(--ac)">'+cd+'</b><span class="mu">›</span></div>'});
  h+='<button class="p fab" id="newTrip">+ New trip</button>';
  var lb=+localStorage.getItem('tp_last')||0,old=ts.length&&(!lb||Date.now()-lb>7*864e5);
- h+='<div class="row" style="gap:8px;margin-top:20px;flex-wrap:wrap"><button class="s" id="exp">⬆ Export</button><button class="s" id="imp">⬇ Import</button>'+(old?'<span class="mu" style="color:var(--dg)">Backup due, tap Export</span>':'')+'</div><input type="file" id="fi" accept=".json,application/json" style="display:none">';
+ h+='<div class="row" style="gap:8px;margin-top:20px;flex-wrap:wrap"><button class="s" id="exp">⬆ Export</button><button class="s" id="imp">⬇ Import</button><button class="s" id="thm">◐ '+thLabel()+'</button>'+(old?'<span class="mu" style="color:var(--dg)">Backup due, tap Export</span>':'')+'</div><input type="file" id="fi" accept=".json,application/json" style="display:none">';
  app.innerHTML=h;
  app.querySelectorAll('[data-open]').forEach(function(e){e.onclick=function(){view.tripId=e.dataset.open;view.tab='it';view.day=null;render()}});
  $('#newTrip').onclick=function(){tripForm()};
- $('#exp').onclick=exportData;$('#imp').onclick=importForm;
+ $('#thm').onclick=function(){thNext();render()};$('#exp').onclick=exportData;$('#imp').onclick=importForm;
  $('#fi').onchange=function(){var f=this.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var n=importText(r.result),mm=$('.modal');if(mm)mm.remove();render();msg(n+' change'+(n===1?'':'s')+' imported')}catch(e){msg('Import failed: '+e.message)}};r.readAsText(f)}}
 
 function trip(app,t){
