@@ -1,0 +1,8 @@
+{
+  // Cloudflare Worker that serves the Trip Planner app (static files only for now)
+  "name": "trip-planner",
+  "compatibility_date": "2026-11-10",
+  "assets": {
+    "directory": "./public"
+  }
+}
