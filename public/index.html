@@ -40,7 +40,7 @@ button.d{color:var(--dg)}button.l{border:0;background:none;padding:4px 8px;color
 label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 input,textarea,select{width:100%;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.air{font-size:26px;font-weight:700;letter-spacing:1px}
+.air{font-size:26px;font-weight:700;letter-spacing:1px}.ft{font-size:19px}.apn{overflow-wrap:anywhere}.fle{flex:0 1 auto;max-width:38%;min-width:0}
 .note{background:var(--ac2);border-radius:10px;padding:10px;font-size:14px;margin-bottom:12px}
 .share{font-size:13px}
 </style></head><body>
@@ -53,6 +53,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function pd(s){var p=s.split('-');return new Date(+p[0],p[1]-1,+p[2])}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function dM(s){var p=(s||'').split('-');return p.length<3?'':p[2].slice(0,2)+'-'+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][p[1]-1]}
 function fmt(s,o){return pd(s).toLocaleDateString(undefined,o||{day:'numeric',month:'short',year:'numeric'})}
 function daysBetween(a,b){return Math.round((pd(b)-pd(a))/864e5)}
 function tripDays(t){var n=Math.max(0,daysBetween(t.start,t.end)),a=[];for(var i=0;i<=n&&i<120;i++){var d=pd(t.start);d.setDate(d.getDate()+i);a.push(iso(d))}return a}
@@ -227,8 +228,8 @@ function flights(t){
  var fs=S.flights.filter(function(f){return f.trip===t.id}).sort(function(a,b){return (a.dep||'')<(b.dep||'')?-1:1}),h='';
  if(!fs.length)h+='<div class="card mu">No flights yet. Add outbound, return and any connections.</div>';
  fs.forEach(function(f){var d=dur(f);
-  h+='<div class="card" data-fl="'+f.id+'" style="cursor:pointer"><div class="row mu"><b>'+esc(f.airline)+' '+esc(f.no)+'</b><span class="sp"></span>'+(f.ref?'Ref '+esc(f.ref):'')+(f.seat?' · Seat '+esc(f.seat):'')+'</div>'+
-  '<div class="row" style="margin:8px 0"><div><div class="air">'+esc(f.from)+'</div><div>'+esc((f.dep||'').slice(11))+'</div><div class="mu">'+(f.dep?fmt(f.dep.slice(0,10),{day:'numeric',month:'short'}):'')+'</div></div><div class="sp" style="text-align:center" ><div class="mu">'+d.d+'</div>✈️</div><div style="text-align:right"><div class="air">'+esc(f.to)+'</div><div>'+esc((f.arr||'').slice(11))+' <b style="color:var(--ac)">'+d.p+'</b></div><div class="mu">'+(f.arr?fmt(f.arr.slice(0,10),{day:'numeric',month:'short'}):'')+'</div></div></div>'+(f.notes?'<div class="mu">'+esc(f.notes)+'</div>':'')+'</div>'});
+  h+='<div class="card" data-fl="'+f.id+'" style="cursor:pointer"><div class="row mu"><span>'+esc(f.no)+' '+esc(f.airline)+'</span><span class="sp"></span>'+(f.ref?'Ref '+esc(f.ref):'')+(f.seat?' · Seat '+esc(f.seat):'')+'</div>'+
+  '<div class="row" style="margin:8px 0;align-items:flex-start"><div class="fle"><div class="air">'+esc(f.from)+'</div>'+(f.fromN?'<div class="apn">'+esc(f.fromN)+'</div>':'')+'<div class="ft">'+esc((f.dep||'').slice(11))+'</div><div class="mu">'+(f.dep?dM(f.dep.slice(0,10)):'')+'</div></div><div class="sp" style="text-align:center;align-self:center"><div style="font-size:14px">'+d.d+'</div>✈️</div><div class="fle" style="text-align:right"><div class="air">'+esc(f.to)+'</div>'+(f.toN?'<div class="apn">'+esc(f.toN)+'</div>':'')+'<div class="ft">'+esc((f.arr||'').slice(11))+' <b style="color:var(--ac)">'+d.p+'</b></div><div class="mu">'+(f.arr?dM(f.arr.slice(0,10)):'')+'</div></div></div>'+(f.notes?'<div class="mu">'+esc(f.notes)+'</div>':'')+'</div>'});
  return h+'<div class="mu share">Times are local to each airport.</div><button class="p fab t" id="addFl">+ Flight</button>'}
 
 function hotels(t){
@@ -412,7 +413,7 @@ function actForm(t,a){
  bx()}
 function flForm(t,x){
  x=x||{};
- modal('<h2>'+(x.id?'Edit flight':'New flight')+'</h2><div class="g2"><div>'+f('airline','Airline',x.airline)+'</div><div>'+f('no','Flight no.',x.no)+'</div><div>'+f('from','From (airport code)',x.from,'text','maxlength="4" placeholder="SIN"')+'</div><div>'+f('to','To (airport code)',x.to,'text','maxlength="4" placeholder="NRT"')+'</div></div>'+
+ modal('<h2>'+(x.id?'Edit flight':'New flight')+'</h2><div class="g2"><div>'+f('airline','Airline',x.airline)+'</div><div>'+f('no','Flight no.',x.no)+'</div><div>'+f('from','From (airport code)',x.from,'text','maxlength="4" placeholder="SIN"')+'</div><div>'+f('to','To (airport code)',x.to,'text','maxlength="4" placeholder="NRT"')+'</div><div>'+f('fromN','From (Airport Name)',x.fromN,'text','maxlength="60" placeholder="Changi Airport Terminal 1"')+'</div><div>'+f('toN','To (Airport Name)',x.toN,'text','maxlength="60"')+'</div></div>'+
  f('dep_d','Departure date (local)',(x.dep||t.start+'T09:00').slice(0,10),'date')+tm('dep','Departure time (local)',(x.dep||t.start+'T09:00').slice(11))+f('depTz','Departure time zone (UTC offset, e.g. 8)',x.depTz||'8','number','step="0.5"')+
  f('arr_d','Arrival date (local)',(x.arr||t.start+'T17:00').slice(0,10),'date')+tm('arr','Arrival time (local)',(x.arr||t.start+'T17:00').slice(11))+f('arrTz','Arrival time zone (UTC offset, e.g. 9)',x.arrTz||'9','number','step="0.5"')+
  '<div class="g2"><div>'+f('ref','Booking reference',x.ref)+'</div><div>'+f('seat','Seat',x.seat)+'</div></div><label>Notes</label><textarea name="notes" rows="2">'+esc(x.notes)+'</textarea>',
