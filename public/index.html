@@ -187,7 +187,9 @@ function trip(app,t){
  else h+='<div class="card mu">Coming in Phase 2.</div>';
  var tb=[['it','🗓','Itinerary'],['fl','🛫','Flights'],['ho','🏨','Hotels'],['bu','💰','Budget'],['pk','🎒','Packing']];
  h+='<div class="tabs">'+tb.map(function(x,i){return '<button data-tab="'+x[0]+'" class="'+(view.tab===x[0]?'on':'')+''+'"><i>'+x[1]+'</i>'+x[2]+'</button>'}).join('')+'</div>';
- app.innerHTML=h;
+ var dz=$('.days'),dzL=dz&&dz.isConnected!==false&&view.dzT===t.id?dz.scrollLeft:null;app.innerHTML=h;
+ /* Day strip: keep its scroll position across re-renders and make sure the chosen day is in view. */
+ dz=$('.days');if(dz){if(dzL!=null)dz.scrollLeft=dzL;view.dzT=t.id;var on=dz.querySelector('.on');if(on){var l=on.offsetLeft-dz.offsetLeft,r=l+on.offsetWidth;if(l<dz.scrollLeft||r>dz.scrollLeft+dz.clientWidth)dz.scrollLeft=Math.max(0,l-(dz.clientWidth-on.offsetWidth)/2)}}
  $('#back').onclick=function(){view.tripId=null;render()};
  var ed=$('#edTrip');if(ed)ed.onclick=function(){tripForm(t)};var cp=$('#cpTrip');if(cp)cp.onclick=function(){if(!cp.dataset.armed){cp.dataset.armed=1;cp.textContent='Tap again to make a copy'}else tripCopy(t)};var sh=$('#shTrip');if(sh)sh.onclick=function(){shareForm(t)};
  if(ro(t.id)){app.querySelectorAll('.fab').forEach(function(b){b.style.display='none'});var pq=$('#pkTxt'),pc=pq&&pq.closest&&pq.closest('.card');if(pc)pc.style.display='none'}
