@@ -18,6 +18,7 @@ It is a simulation: it does not touch the real Cloudflare database or sign-in.
     node tests/screens/tabs.js
     node tests/screens/budget.js
     node tests/screens/itinerary.js
+    node tests/screens/modal.js
 
 Need Playwright with Chromium. Each opens the app in a headless browser with made-up data, prints a few facts
 (page errors, sideways overflow, order of items) and saves screenshots to `tests/screens/out/` (not committed).

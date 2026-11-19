@@ -365,8 +365,13 @@ function msg(t){var e=$('#mErr');if(e){e.textContent=t;e.style.display='block'}e
 function modal(html,onSave,onDel){
  var m=document.createElement('div');m.className='modal';m.innerHTML='<div class="sheet">'+html+'<div id="mErr" class="note" style="display:none;color:var(--dg);margin-top:12px"></div><div class="row" style="margin-top:16px">'+(onDel?'<button class="d" id="mDel">Delete</button>':'')+'<span class="sp"></span><button id="mX">Cancel</button><button class="p" id="mOk">Save</button></div></div>';
  document.body.appendChild(m);csel(m);
- function close(){m.remove();render()}
+ function close(){m.remove();document.removeEventListener('keydown',esc0);render()}
  m.querySelector('#mX').onclick=close;
+ /* Tap the shaded area outside the sheet (or press Escape) to close. If something was typed or chosen, the first tap only warns. */
+ var dirty=false,warned=0,down=false;m.addEventListener('input',function(){dirty=true});m.addEventListener('change',function(){dirty=true});
+ function outside(){if(!dirty||Date.now()-warned<4000)return close();warned=Date.now();msg('You have unsaved changes. Tap outside again to discard them, or tap Save.')}
+ m.addEventListener('pointerdown',function(e){down=e.target===m});m.addEventListener('click',function(e){if(e.target===m&&down)outside();down=false});
+ function esc0(e){if(!m.isConnected)return document.removeEventListener('keydown',esc0);if(e.key==='Escape'&&m===document.querySelector('.modal:last-of-type'))outside()}document.addEventListener('keydown',esc0);
  m.querySelector('#mOk').onclick=function(){var v={};m.querySelectorAll('[name]').forEach(function(i){v[i.name]=i.value.trim()});if(onSave(v)!==false)close()};
  if(onDel){var dl=m.querySelector('#mDel'),armed=false;dl.onclick=function(){if(!armed){armed=true;dl.textContent='Tap again to confirm';dl.style.background='var(--dg)';dl.style.color='#fff';setTimeout(function(){armed=false;dl.textContent='Delete';dl.style.background='';dl.style.color=''},4000)}else{onDel();close()}}}}
 function f(n,l,v,type,extra){return '<label>'+l+'</label><input name="'+n+'" type="'+(type||'text')+'" value="'+esc(v)+'" '+(extra||'')+'>'}
