@@ -45,8 +45,11 @@ input,textarea,select{width:100%;font:inherit;padding:10px;border-radius:10px;bo
 .fh{display:flex;gap:4px 14px;align-items:flex-start}.fh>div{min-width:0;overflow:hidden}.fh>div:last-child{flex:1;text-align:right}.fh p{display:flex;flex-wrap:wrap;margin:0 0 0 -16px}.fh>div:last-child p{justify-content:flex-end;margin:0 -16px 0 0}.fh span{overflow-wrap:anywhere;position:relative;padding-left:16px}.fh>div:last-child span{padding:0 16px 0 0}.fh span::before{content:'·';position:absolute;left:6px}.fh>div:last-child span::before{left:auto;right:6px}.fle{flex:0 1 auto;max-width:38%;min-width:0}
 .note{background:var(--ac2);border-radius:10px;padding:10px;font-size:14px;margin-bottom:12px}
 .share{font-size:13px}
+/* Back-to-top button: bottom left, opposite the + button; shows after scrolling down. */
+.totop{position:fixed;left:max(16px,calc(50% - 304px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:44px;height:44px;padding:0;border-radius:50%;font-size:20px;font-weight:700;line-height:1;color:var(--ac);background:var(--card);border:1px solid var(--bd);box-shadow:0 4px 14px #0003;z-index:8;opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .2s,transform .2s}.totop.t{bottom:calc(78px + env(safe-area-inset-bottom,0px))}.totop.show{opacity:1;pointer-events:auto;transform:none}
 </style></head><body>
 <div id="app"><p class="mu">Loading…</p></div>
+<button id="toTop" class="totop" aria-label="Back to top" title="Back to top">↑</button>
 <script>
 (function(){
 var db=null,S={trips:[],flights:[],acts:[],hotels:[],expenses:[],packing:[]},view={tripId:null,tab:'it',day:null},ready=false;
@@ -211,7 +214,7 @@ function trip(app,t){
 function itin(t,days){
  var h=bkBanner(t)+'<div class="days">'+days.map(function(d,i){var w=wxFor(t,d);return '<button data-day="'+d+'" class="'+(d===view.day?'on':'')+'">Day '+(i+1)+'<br><small>'+fmt(d,{day:'numeric',month:'short'})+'</small>'+(w?'<br>'+wxIcon(w.code)+'<br><small>'+w.hi+'°/'+w.lo+'°</small>':'')+'</button>'}).join('')+'</div>';
  var out=S.acts.filter(function(a){return a.trip===t.id&&(a.date<t.start||a.date>t.end)}).length;if(out)h+='<div class="note">⚠️ '+out+' activit'+(out>1?'ies are':'y is')+' outside your trip dates and hidden. Edit the trip dates to see '+(out>1?'them':'it')+'.</div>';
- h+='<div class="mu" style="margin-bottom:8px">'+fmt(view.day,{weekday:'long',day:'numeric',month:'long'})+'</div>';
+ h+='<div style="margin-bottom:8px;font-size:14px;font-weight:700;color:var(--tx)">'+fmt(view.day,{weekday:'long',day:'numeric',month:'long'})+'</div>';
  var as=S.acts.filter(function(a){return a.trip===t.id&&a.date===view.day}).sort(function(a,b){return (a.time||'99:99')<(b.time||'99:99')?-1:1});
  var fs=S.flights.filter(function(f){return f.trip===t.id&&((f.dep||'').slice(0,10)===view.day||(f.arr||'').slice(0,10)===view.day)});
  fs.sort(function(a,b){return (a.dep||'')<(b.dep||'')?-1:1}).forEach(function(f){var dd=(f.dep||'').slice(0,10)===view.day,ad=(f.arr||'').slice(0,10)===view.day,nx=ad?0:daysBetween(view.day,(f.arr||'').slice(0,10)),nm=((f.airline||'')+' '+(f.no||'')).trim();
@@ -436,6 +439,9 @@ function flForm(t,x){
 document.addEventListener('click',function(e){var o=e.target.closest&&e.target.closest('[data-open],[data-tab],[data-day]');if(!o||$('.modal'))return;if(o.dataset.open){view.tripId=o.dataset.open;view.tab='it';view.day=null}else if(o.dataset.tab)view.tab=o.dataset.tab;else view.day=o.dataset.day;render()});
 window.addEventListener('error',function(e){var b=document.createElement('div');b.className='card';b.style.cssText='position:fixed;top:8px;left:8px;right:8px;z-index:99';b.textContent='Error: '+e.message;document.body.appendChild(b)});
 loadStore();load();render();
+(function(){var b=$('#toTop');function upd(){b.classList.toggle('t',!!$('.tabs'));b.classList.toggle('show',(window.scrollY||document.documentElement.scrollTop)>400)}
+ window.addEventListener('scroll',upd,{passive:true});window.addEventListener('resize',upd);new MutationObserver(upd).observe($('#app'),{childList:true});
+ b.onclick=function(){try{window.scrollTo({top:0,behavior:'smooth'})}catch(e){window.scrollTo(0,0)}};upd()})();
 syCheck();document.addEventListener('visibilitychange',syWake);window.addEventListener('online',syWake);setInterval(syWake,30000);
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(function(){});
