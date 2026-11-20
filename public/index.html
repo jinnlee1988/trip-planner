@@ -439,8 +439,8 @@ function flForm(t,x){
 document.addEventListener('click',function(e){var o=e.target.closest&&e.target.closest('[data-open],[data-tab],[data-day]');if(!o||$('.modal'))return;if(o.dataset.open){view.tripId=o.dataset.open;view.tab='it';view.day=null}else if(o.dataset.tab)view.tab=o.dataset.tab;else view.day=o.dataset.day;render()});
 window.addEventListener('error',function(e){var b=document.createElement('div');b.className='card';b.style.cssText='position:fixed;top:8px;left:8px;right:8px;z-index:99';b.textContent='Error: '+e.message;document.body.appendChild(b)});
 loadStore();load();render();
-(function(){var b=$('#toTop');function upd(){b.classList.toggle('t',!!$('.tabs'));b.classList.toggle('show',(window.scrollY||document.documentElement.scrollTop)>400)}
- window.addEventListener('scroll',upd,{passive:true});window.addEventListener('resize',upd);new MutationObserver(upd).observe($('#app'),{childList:true});
+(function(){var b=$('#toTop');if(!b||!b.classList)return;function upd(){b.classList.toggle('t',!!$('.tabs'));b.classList.toggle('show',(window.scrollY||document.documentElement.scrollTop)>400)}
+ window.addEventListener('scroll',upd,{passive:true});window.addEventListener('resize',upd);if(window.MutationObserver)new MutationObserver(upd).observe($('#app'),{childList:true});
  b.onclick=function(){try{window.scrollTo({top:0,behavior:'smooth'})}catch(e){window.scrollTo(0,0)}};upd()})();
 syCheck();document.addEventListener('visibilitychange',syWake);window.addEventListener('online',syWake);setInterval(syWake,30000);
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
