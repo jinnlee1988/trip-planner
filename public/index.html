@@ -214,7 +214,7 @@ function trip(app,t){
 function itin(t,days){
  var h=bkBanner(t)+'<div class="days">'+days.map(function(d,i){var w=wxFor(t,d);return '<button data-day="'+d+'" class="'+(d===view.day?'on':'')+'">Day '+(i+1)+'<br><small>'+fmt(d,{day:'numeric',month:'short'})+'</small>'+(w?'<br>'+wxIcon(w.code)+'<br><small>'+w.hi+'°/'+w.lo+'°</small>':'')+'</button>'}).join('')+'</div>';
  var out=S.acts.filter(function(a){return a.trip===t.id&&(a.date<t.start||a.date>t.end)}).length;if(out)h+='<div class="note">⚠️ '+out+' activit'+(out>1?'ies are':'y is')+' outside your trip dates and hidden. Edit the trip dates to see '+(out>1?'them':'it')+'.</div>';
- h+='<div style="margin-bottom:8px;font-size:14px;font-weight:700;color:var(--tx)">'+fmt(view.day,{weekday:'long',day:'numeric',month:'long'})+'</div>';
+ h+='<div style="margin-bottom:8px;font-size:smaller;color:var(--tx)">'+fmt(view.day,{weekday:'long',day:'numeric',month:'long'})+'</div>';
  var as=S.acts.filter(function(a){return a.trip===t.id&&a.date===view.day}).sort(function(a,b){return (a.time||'99:99')<(b.time||'99:99')?-1:1});
  var fs=S.flights.filter(function(f){return f.trip===t.id&&((f.dep||'').slice(0,10)===view.day||(f.arr||'').slice(0,10)===view.day)});
  fs.sort(function(a,b){return (a.dep||'')<(b.dep||'')?-1:1}).forEach(function(f){var dd=(f.dep||'').slice(0,10)===view.day,ad=(f.arr||'').slice(0,10)===view.day,nx=ad?0:daysBetween(view.day,(f.arr||'').slice(0,10)),nm=((f.airline||'')+' '+(f.no||'')).trim();
